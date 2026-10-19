@@ -22,7 +22,7 @@ library(tidyr)
 library(ggeffects)
 
 
-#SCETION 1: PREPARING THE DATA
+#SCETION 1: PREPARING THE DATA.
 file_1 <- read_excel("C:/Users/trbag//Downloads/BioMaths/Hopefully final/TIR every day.xlsx") #loads data for our main analysis
 file_1 <- filter(file_1, TrtGroup != "BPFiasp") 
 #just make sure to remove all patients with BPFiasp as a treatment group otherwise the summary will say there are 60 patients without an age at enrollment 
