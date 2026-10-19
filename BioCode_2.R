@@ -1,4 +1,5 @@
-pkgbuild::has_build_tools(debug = TRUE)
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
 install.packages("glmmTMB")
 install.packages("dplyr")
 install.packages("ggplot2")
@@ -31,7 +32,7 @@ file_1 <- filter(file_1, TrtGroup != "BPFiasp")
 summary(file_1)
 
 Daily_vals <- data.frame(file_1) #create a data frame that contains all columns of data from file_1
-file_2 <- file_2 <- read_excel("BPFIASP_TIR.xlsx")
+file_2 <- read_excel("BPFIASP_TIR.xlsx")
 file_2 <- filter(file_2, TrtGroup != "Control") #exclude all control patuents from our file
 summary(file_2)
 BP_Data <- data.frame(file_2)
@@ -243,7 +244,7 @@ contrast(emm, method = "pairwise")
       ci_values <- sort(c(emm_results$lower, emm_results$upper))
       
       # Plot
-      ggplot(
+      graph_mean_tir<- ggplot(
         emm_results,
         aes(
           x = x_pos,
@@ -363,6 +364,10 @@ contrast(emm, method = "pairwise")
         ) +
         
         theme_minimal()
+      
+      print(graph_mean_tir)
+      ggsave("Graph1.png", plot = graph_mean_tir,
+             width = 10, height = 6, dpi = 300)
 
 #----------------------------------------------------------------------------------
 #GRAPH 2: PREDICTED TIR FOR EACH AGE IN EACH TREATMENT GROUP 
@@ -375,7 +380,7 @@ contrast(emm, method = "pairwise")
       )
       
       # Plot
-      plot(pred_age) +
+      graph_pred_age <- plot(pred_age) +
         scale_y_continuous(
           labels = scales::percent,
           limits = c(0, 1)
@@ -389,6 +394,10 @@ contrast(emm, method = "pairwise")
           fill = "Treatment Group"
         ) +
         theme_minimal()
+      
+      print(graph_pred_age)
+      ggsave("Graph2.png", plot = graph_pred_age,
+             width = 10, height = 6, dpi = 300)
 
 #-------------------------------------------------------
 # GRAPH 3: OVERALL TIR PER PATIENT PER STUDY
@@ -411,7 +420,7 @@ contrast(emm, method = "pairwise")
         mutate(rank = row_number()) %>%
         ungroup()
       
-      ggplot(pt_tir, aes(x = rank, y = TIR, colour = StudyGroup)) +
+      graph_patient_tir <- ggplot(pt_tir, aes(x = rank, y = TIR, colour = StudyGroup)) +
         geom_point(size = 2, alpha = 0.8) +
         geom_hline(data = group_means,
                    aes(yintercept = mean_TIR, colour = StudyGroup),
@@ -427,7 +436,9 @@ contrast(emm, method = "pairwise")
               axis.ticks.x = element_blank(),
               legend.position = "none")
       
-      ggsave("fig_patient_tir_ranked.png", width = 9, height = 5, dpi = 300)
+      print(graph_patient_tir)
+      ggsave("Graph3.png", plot = graph_patient_tir,
+             width = 9, height = 5, dpi = 300)
 
 
 #-----------------------------------------------------------------------------------
@@ -474,7 +485,7 @@ contrast(emm, method = "pairwise")
       
       
       #Plot graph
-      ggplot(
+      graph_patient_comparison <- ggplot(
         patient_comparison,
         aes(
           x = Observed,
@@ -543,6 +554,10 @@ contrast(emm, method = "pairwise")
             colour = "grey95"
           )
         )
+      
+      print(graph_patient_comparison)
+      ggsave("Graph4.png", plot = graph_patient_comparison,
+             width = 10, height = 7, dpi = 300)
 #-----------------------------------------------------------
 
 #GRAPH 5: ESTIMATED MEAN PROPORTION OF READINGS BELOW 54mg.dl
@@ -723,6 +738,9 @@ contrast(emm, method = "pairwise")
         )
       
       print(graph_age)
+      
+      ggsave("Graph5.png", plot = graph_age,
+             width = 10, height = 6, dpi = 300)
 
 #-----------------------------------------------------------
 
@@ -911,7 +929,8 @@ contrast(emm, method = "pairwise")
       
       print(graph_fiasp)
       
-      
+      ggsave("Graph6.png", plot = graph_fiasp,
+             width = 10, height = 6, dpi = 300)
 
 #-------------------------------------
 
@@ -1094,14 +1113,8 @@ contrast(emm, method = "pairwise")
       
       
       #Improve the resolution of the graph
-      ggsave(
-        filename = "Figure4_Patient_TIR_Trajectories.png",
-        plot = graph_trajectories,
-        width = 11,
-        height = 7,
-        dpi = 300
-      )
-      
+      ggsave("Graph7.png", plot = graph_trajectories,
+             width = 11, height = 7, dpi = 300)
 
 
 
@@ -1125,3 +1138,11 @@ contrast(emm, method = "pairwise")
       testUniformity(res_FINAL)
       testDispersion(res_FINAL)
       testOutliers(res_FINAL)
+      
+    
+      png("Graph8.png",
+          width = 3000, height = 1800, res = 300)
+      
+      plot(res_FINAL)
+      
+      dev.off()
