@@ -8,6 +8,8 @@ install.packages("DHARMa")
 install.packages("performance")
 install.packages("ggeffects")
 install.packages("statmod")
+install.packages("tidyr")
+install.packages("readxl")
 
 
 library(glmmTMB)
@@ -23,13 +25,13 @@ library(ggeffects)
 
 
 #SCETION 1: PREPARING THE DATA.
-file_1 <- read_excel("C:/Users/trbag//Downloads/BioMaths/Hopefully final/TIR every day.xlsx") #loads data for our main analysis
+file_1 <- read_excel("TIR every day.xlsx") #loads data for our main analysis
 file_1 <- filter(file_1, TrtGroup != "BPFiasp") 
 #just make sure to remove all patients with BPFiasp as a treatment group otherwise the summary will say there are 60 patients without an age at enrollment 
 summary(file_1)
 
 Daily_vals <- data.frame(file_1) #create a data frame that contains all columns of data from file_1
-file_2 <- read_excel("C:/Users/trbag/Downloads/BioMaths/Hopefully final/BPFIASP_TIR.xlsx")
+file_2 <- file_2 <- read_excel("BPFIASP_TIR.xlsx")
 file_2 <- filter(file_2, TrtGroup != "Control") #exclude all control patuents from our file
 summary(file_2)
 BP_Data <- data.frame(file_2)
@@ -194,7 +196,7 @@ contrast(emm, method = "pairwise")
         summary(
           emm,
           type = "response", #converts log-odds values to proportions 
-          infer = c(TRUE, FALSE), #displays the confidence intervals but not the standard errors or degrees of freedom
+          infer = c(TRUE, FALSE), #displays the confidence intervals but not the hypothesis test results
           level = 0.95 #sets confidence level to 95%
         )
       )
@@ -203,7 +205,7 @@ contrast(emm, method = "pairwise")
       contrast_results <- as.data.frame(
         summary(
           contrast(emm, method = "pairwise"),
-          type = "response" #results converted from log-odds to proportions
+          type = "response" #results converted from log-odds to odds ratio
         )
       )
       
@@ -389,7 +391,7 @@ contrast(emm, method = "pairwise")
         theme_minimal()
 
 #-------------------------------------------------------
-#POSSIBLE GRAPH 3: OVERALL TIR PER PATIENT PER STUDY
+# GRAPH 3: OVERALL TIR PER PATIENT PER STUDY
       
       
       # Each patient's overall time in range, weighted by readings per day
@@ -431,27 +433,21 @@ contrast(emm, method = "pairwise")
 #-----------------------------------------------------------------------------------
 
 #GRAPH 4: SHOW OBSERVED VS PREDICTED OVERALL TIR THROUGHOUT STUDY
-      library(ggplot2)
-      library(dplyr)
-      
-      # 1. Prepare the data
-      # Assumes model_FINAL was fitted using all rows of Daily_vals
-      # in the same order
       
       plot_data <- Daily_vals
       
-      # Model-fitted daily TIR (including random effects)
+      #Calculates predicted daily TIR per patient from the model
       plot_data$FittedTIR <- predict(
         model_FINAL,
         type = "response"
       ) * 100
       
-      # Observed daily TIR
+      # Converts each patient's actual ratio to a percentage
       plot_data$ActualTIR <- plot_data$Ratio * 100
       
       
-      # 2. Calculate observed and fitted TIR for each patient
       
+      #Calculate overall observed and overall estimated TIR per patient
       patient_comparison <- plot_data %>%
         group_by(PtID, StudyGroup) %>%
         summarise(
@@ -469,8 +465,7 @@ contrast(emm, method = "pairwise")
         )
       
       
-      # 3. Create data for the perfect-agreement line
-      
+     #Generate data where the actual overal TIR = model-estimated overall TIR
       agreement_line <- data.frame(
         Observed = c(0, 100),
         Fitted = c(0, 100),
@@ -478,8 +473,7 @@ contrast(emm, method = "pairwise")
       )
       
       
-      # 4. Create the graph
-      
+      #Plot graph
       ggplot(
         patient_comparison,
         aes(
@@ -489,13 +483,13 @@ contrast(emm, method = "pairwise")
         )
       ) +
         
-        # Each point represents one patient
+        # Define size + transparency of points (each point is a different patient)
         geom_point(
           size = 2.5,
           alpha = 0.8
         ) +
         
-        # Dashed line: Actual TIR = Predicted TIR
+        # Draw dashed line that represents where actual overall TIR= model-estimated TIR (y=x)
         geom_line(
           data = agreement_line,
           aes(
@@ -508,7 +502,7 @@ contrast(emm, method = "pairwise")
           linewidth = 0.7
         ) +
         
-        # Treatment group colours
+        #Assign a colour to each treatment group (BPP vs BPFiasp)
         scale_colour_manual(
           name = "Treatment Group",
           values = c(
@@ -517,7 +511,7 @@ contrast(emm, method = "pairwise")
           )
         ) +
         
-        # Add dashed line to legend
+        #Add the dashed line (y=x) to the legend
         scale_linetype_manual(
           name = NULL,
           values = c(
@@ -525,7 +519,7 @@ contrast(emm, method = "pairwise")
           )
         ) +
         
-        # Set equal axes
+        #Set both axis values to [0,100]
         coord_equal(
           xlim = c(0, 100),
           ylim = c(0, 100)
@@ -551,34 +545,32 @@ contrast(emm, method = "pairwise")
         )
 #-----------------------------------------------------------
 
-#POSSIBLE GRAPH 5: ESTIMATED MEAN PROPORTION OF READINGS BELOW 54mg.dl
-      library(ggplot2)
-      library(dplyr)
-      library(emmeans)
+#GRAPH 5: ESTIMATED MEAN PROPORTION OF READINGS BELOW 54mg.dl
       
-      # 1. Obtain estimated proportions
-      
+    
+      # Repeat the emmeans calculation from hypothesis 2, with results on the log-odds scale
       emm_age <- emmeans(model_AGE, ~ AgeGroup)
       
+      # Take the estimated proportions and 95% confidence intervals from the emmeans summary
       age_results <- as.data.frame(
-        summary(emm_age, type = "response")
+        summary(emm_age, type = "response") # Convert log-odds to proportions
       ) %>%
         mutate(
-          AgeGroup = factor(
+          AgeGroup = factor( 
             as.character(AgeGroup),
-            levels = c("Undr65", "Ovr65")
+            levels = c("Undr65", "Ovr65") #Defines order for the different age groups
           ),
           Mean = prob * 100,
           Lower = asymp.LCL * 100,
           Upper = asymp.UCL * 100
         ) %>%
-        arrange(AgeGroup) %>%
-        mutate(x_pos = row_number())
+        arrange(AgeGroup) %>% # Sort rows into the specified age-group order
+        mutate(x_pos = row_number()) # Set bar positions to 1 and 2
       
       print(age_results)
       
-      # 2. Odds ratio and p-value
       
+      # Repeat the contrast calculation from hypothesis 2 and place results in a data frame
       age_contrast <- as.data.frame(
         summary(
           contrast(emm_age, method = "pairwise"),
@@ -586,8 +578,8 @@ contrast(emm, method = "pairwise")
         )
       )
       
-      # 3. Y-axis labels
       
+      # Sort confidence interval values across age groups from lowest to highest for the y-axis
       ci_ticks_age <- sort(c(
         age_results$Lower,
         age_results$Upper
@@ -595,32 +587,32 @@ contrast(emm, method = "pairwise")
       
       regular_ticks_age <- seq(0, 0.6, 0.1)
       
-      # Remove regular ticks within 0.04 percentage points
-      # of any confidence interval endpoint
+      #Remove ticks that are too close together 
       regular_ticks_age <- regular_ticks_age[
         sapply(regular_ticks_age, function(x) {
           all(abs(x - ci_ticks_age) >= 0.04)
         })
       ]
       
+      # Combine the regular ticks and confidence limits, then remove duplicates and sort what remains
       age_ticks <- sort(unique(c(
         regular_ticks_age,
         ci_ticks_age
       )))
       
-      # 4. Graph
       
+      #plot graph
       graph_age <- ggplot(
         age_results,
         aes(x = x_pos, y = Mean, fill = AgeGroup)
       ) +
-        
+       #Specify the width and transparency of bars for each age group 
         geom_col(
           width = 0.55,
           alpha = 0.9
         ) +
         
-        # Coloured confidence interval error bars
+        #Draw lines representing confidence intervals
         geom_errorbar(
           aes(
             ymin = Lower,
@@ -631,7 +623,7 @@ contrast(emm, method = "pairwise")
           linewidth = 0.9
         ) +
         
-        # Lower CI dotted lines
+        # Draw dotted lines from lower confidence limits towards the y-axis
         geom_segment(
           aes(
             x = 0.5,
@@ -644,7 +636,7 @@ contrast(emm, method = "pairwise")
           linewidth = 0.7
         ) +
         
-        # Upper CI dotted lines
+        # Draw dotted lines from upper confidence limits towards the y-axis
         geom_segment(
           aes(
             x = 0.5,
@@ -657,18 +649,18 @@ contrast(emm, method = "pairwise")
           linewidth = 0.7
         ) +
         
-        # Percentages inside bars
+        # Write the estimated percentage of readings below 54 mg/dl in the middle of each bar
         geom_text(
           aes(
             y = Mean / 2,
-            label = sprintf("%.3f%%", Mean)
+            label = sprintf("%.3f%%", Mean) # Display three decimal places
           ),
           colour = "white",
           fontface = "bold",
           size = 5
         ) +
         
-        # Odds ratio and p-value
+        # Add text showing the odds ratio and p-value from age_contrast
         annotate(
           "text",
           x = 1.5,
@@ -681,27 +673,27 @@ contrast(emm, method = "pairwise")
           ),
           size = 4
         ) +
-        
+        # Specify the bar colours 
         scale_fill_manual(
           values = c(
             "Undr65" = "#E89088",
             "Ovr65" = "#59C3C9"
           )
         ) +
-        
+        # Specify the colours for the confidence interval solid and dotted lines
         scale_colour_manual(
           values = c(
             "Undr65" = "red3",
             "Ovr65" = "dodgerblue3"
           )
         ) +
-        
+        # Label positions 1 and 2 with age-group names and set x-axis limits
         scale_x_continuous(
           breaks = age_results$x_pos,
           labels = as.character(age_results$AgeGroup),
           limits = c(0.5, 2.5)
         ) +
-        
+        # Label the y-axis with the selected percentages and confidence limits
         scale_y_continuous(
           breaks = age_ticks,
           labels = function(x) sprintf("%.3f%%", x),
@@ -736,14 +728,13 @@ contrast(emm, method = "pairwise")
 
 
 #GRAPH 6: BP vs BPFiasp
-      library(ggplot2)
-      library(dplyr)
-      library(emmeans)
+    
       
-      # 1. Obtain model estimates
       
+      # Repeat the emmeans calculation from hypothesis 3, with results on the log-odds scale
       emm_fiasp <- emmeans(model_FIASP, ~ TrtGroup)
       
+      # Take the estimated proportions and 95% confidence intervals from the emmeans summary
       fiasp_results <- as.data.frame(
         summary(emm_fiasp, type = "response")
       ) %>%
@@ -756,11 +747,10 @@ contrast(emm, method = "pairwise")
           Lower = asymp.LCL * 100,
           Upper = asymp.UCL * 100
         ) %>%
-        arrange(TrtGroup) %>%
-        mutate(x_pos = row_number())
+        arrange(TrtGroup) %>%  # Sort rows into the specified treatment-group order
+        mutate(x_pos = row_number())  # Set positions 1 and 2 for the bars corresponding to the two treatment groups
       
-      # 2. Odds ratio and p-value
-      
+      # Repeat the contrast calculation from hypothesis 3 and place results in a data frame
       fiasp_contrast <- as.data.frame(
         summary(
           contrast(emm_fiasp, method = "pairwise"),
@@ -768,20 +758,20 @@ contrast(emm, method = "pairwise")
         )
       )
       
-      # 3. Create graph
       
+      #Plot
       graph_fiasp <- ggplot(
         fiasp_results,
         aes(x = x_pos, y = Mean, fill = TrtGroup)
       ) +
         
-        # Bars
+        # Specify the width and transparency of bars for each treatment group 
         geom_col(
           width = 0.55,
           alpha = 0.9
         ) +
         
-        # Coloured error bars
+        # Draw lines representing confidence intervals
         geom_errorbar(
           aes(
             ymin = Lower,
@@ -792,7 +782,7 @@ contrast(emm, method = "pairwise")
           linewidth = 0.9
         ) +
         
-        # Dotted lower CI lines
+        # Draw dotted lines from lower confidence limits towards the y-axis
         geom_segment(
           aes(
             x = 0.5,
@@ -805,7 +795,7 @@ contrast(emm, method = "pairwise")
           linewidth = 0.7
         ) +
         
-        # Dotted upper CI lines
+        # Draw dotted lines from upper confidence limits towards the y-axis
         geom_segment(
           aes(
             x = 0.5,
@@ -818,7 +808,7 @@ contrast(emm, method = "pairwise")
           linewidth = 0.7
         ) +
         
-        # Lower CI labels: below the top of each bar
+        # Write the lower confidence limit three percentage points below its line so its more visible 
         geom_text(
           aes(
             y = Lower - 3,
@@ -831,7 +821,7 @@ contrast(emm, method = "pairwise")
           size = 3.5
         ) +
         
-        # Upper CI labels: above each bar
+        # Write the upper confidence limit three percentage points above its line so its more visible
         geom_text(
           aes(
             y = Upper + 3,
@@ -844,7 +834,7 @@ contrast(emm, method = "pairwise")
           size = 3.5
         ) +
         
-        # Estimated means inside bars
+        # Write the estimated mean TIR percentage in the middle of each bar
         geom_text(
           aes(
             y = Mean / 2,
@@ -855,7 +845,7 @@ contrast(emm, method = "pairwise")
           size = 5
         ) +
         
-        # Odds ratio and p-value
+        # Add text showing the odds ratio and p-value from fiasp_contrast
         annotate(
           "text",
           x = 1.5,
@@ -869,7 +859,7 @@ contrast(emm, method = "pairwise")
           size = 4
         ) +
         
-        # Bar colours
+        # Specify the bar colours
         scale_fill_manual(
           values = c(
             "BP" = "#E89088",
@@ -877,7 +867,7 @@ contrast(emm, method = "pairwise")
           )
         ) +
         
-        # Error bar and dotted line colours
+        # Specify the colours for the confidence interval solid and dotted lines
         scale_colour_manual(
           values = c(
             "BP" = "red3",
@@ -885,14 +875,14 @@ contrast(emm, method = "pairwise")
           )
         ) +
         
-        # X-axis labels
+        # Label positions 1 and 2 with the treatment-group names and set the x-axis limits
         scale_x_continuous(
           breaks = fiasp_results$x_pos,
           labels = as.character(fiasp_results$TrtGroup),
           limits = c(0.5, 2.5)
         ) +
         
-        # Regular y-axis ticks only
+        #Set the ticks on the y-axis
         scale_y_continuous(
           breaks = seq(0, 100, 25),
           labels = function(x) paste0(x, "%")
@@ -926,55 +916,49 @@ contrast(emm, method = "pairwise")
 #-------------------------------------
 
 #Graph 7: Compare patients actual vs fitted daily TIR
-      library(ggplot2)
-      library(dplyr)
-      library(tidyr)
-      
-      # 1. Prepare data
-      # Assumes model_FINAL was fitted using all rows
-      # of Daily_vals in the same order
+  
       
       plot_data <- Daily_vals
       
-      # Model-fitted daily TIR
+      # Calculate predicted daily Ratio per patient from the model
       plot_data$FittedTIR <- predict(
         model_FINAL,
         type = "response"
       ) * 100
       
-      # Observed daily TIR
+      #Convert the actual ratio per patient into a percentage
       plot_data$ActualTIR <- plot_data$Ratio * 100
       
-      # Convert study day to numeric
+      # Convert the Study Day factor labels to numbers 
       plot_data$StudyDay <- as.numeric(
         as.character(plot_data$StudyDayFactor)
       )
       
       
-      # 2. Randomly select 2 patients per treatment group
       
-      set.seed(123)
+      #Select any two random patients from each treatment group
+      set.seed(123) #use for reproducibility
       
       selected_patients <- plot_data %>%
-        distinct(StudyGroup, PtID) %>%
+        distinct(StudyGroup, PtID) %>% #Retain one row per patient per study group
         group_by(StudyGroup) %>%
-        slice_sample(n = 2) %>%
+        slice_sample(n = 2) %>% #choose any two random patients in each study group
         ungroup()
       
       print(selected_patients)
       
       
-      # 3. Keep selected patients
-      
+     
+    #Retain data for those selected patients for the duration of the study   
       selected_data <- plot_data %>%
-        semi_join(
+        semi_join( #retain rows that match an entry in selected_patients
           selected_patients,
-          by = c("StudyGroup", "PtID")
+          by = c("StudyGroup", "PtID") #compare the PtID and studygroup when looking for a match 
         )
       
       
-      # 4. Convert to long format
-      
+     
+      #Change table layout so for each patient the fitted and observed dailt TIR are in separate rows, one underneath the other
       trajectory_data <- selected_data %>%
         select(
           PtID,
@@ -983,7 +967,7 @@ contrast(emm, method = "pairwise")
           ActualTIR,
           FittedTIR
         ) %>%
-        pivot_longer(
+        pivot_longer( #Creates the separate rows for each patient on each day 
           cols = c(ActualTIR, FittedTIR),
           names_to = "Type",
           values_to = "TIR"
@@ -994,7 +978,7 @@ contrast(emm, method = "pairwise")
             levels = c("ActualTIR", "FittedTIR"),
             labels = c("Observed", "Model-fitted")
           ),
-          
+          #generate labels for each random patient
           PatientLabel = paste0(
             ifelse(
               StudyGroup == "Bionic Pancreas",
@@ -1003,7 +987,7 @@ contrast(emm, method = "pairwise")
             ),
             " - Patient ", PtID
           ),
-          
+          #Define categroies to we can use different colours to represent observed vs estimated daily TIR for each study group
           LineColour = case_when(
             Type == "Model-fitted" ~ "Model-fitted",
             StudyGroup == "Bionic Pancreas" ~ "BP observed",
@@ -1013,8 +997,8 @@ contrast(emm, method = "pairwise")
         arrange(PtID, Type, StudyDay)
       
       
-      # 5. Create four-panel graph
       
+      #Create graph with four separate sections (one for each patient)
       graph_trajectories <- ggplot(
         trajectory_data,
         aes(
@@ -1022,23 +1006,23 @@ contrast(emm, method = "pairwise")
           y = TIR,
           colour = LineColour,
           linetype = Type,
-          group = interaction(PtID, Type)
+          group = interaction(PtID, Type) #Draw a separate line for each patient and for the observed and estimated TIR
         )
       ) +
         
-        # Patient trajectories
+        #Join each daily TIR value with lines
         geom_line(
           linewidth = 0.7,
           alpha = 0.85
         ) +
         
-        # Four separate patient panels
+        #Define the two row, two column graph (each "block" in the graph corresponds to a different patient)
         facet_wrap(
           ~ PatientLabel,
           ncol = 2
         ) +
         
-        # Line colours
+        #Specify colours of lines and the legend
         scale_colour_manual(
           name = NULL,
           breaks = c(
@@ -1053,7 +1037,7 @@ contrast(emm, method = "pairwise")
           )
         ) +
         
-        # Line types
+        #Define the different types of lines and show how they correspond to different colours 
         scale_linetype_manual(
           values = c(
             "Observed" = "solid",
@@ -1062,7 +1046,7 @@ contrast(emm, method = "pairwise")
           guide = "none"
         ) +
         
-        # One combined legend
+        
         guides(
           colour = guide_legend(
             override.aes = list(
@@ -1077,7 +1061,6 @@ contrast(emm, method = "pairwise")
           )
         ) +
         
-        # Y-axis
         scale_y_continuous(
           breaks = seq(0, 100, 20),
           labels = function(x) paste0(x, "%")
@@ -1087,7 +1070,7 @@ contrast(emm, method = "pairwise")
           ylim = c(0, 100)
         ) +
         
-        # Labels
+    
         labs(
           title = "Observed vs Model-Fitted Daily TIR",
           subtitle = "Two randomly selected patients per treatment group",
@@ -1095,7 +1078,7 @@ contrast(emm, method = "pairwise")
           y = "Daily TIR (%)"
         ) +
         
-        # Appearance
+   
         theme_minimal(base_size = 12) +
         
         theme(
@@ -1109,8 +1092,8 @@ contrast(emm, method = "pairwise")
       print(graph_trajectories)
       
       
-      # 6. Save high-resolution figure for Word
       
+      #Improve the resolution of the graph
       ggsave(
         filename = "Figure4_Patient_TIR_Trajectories.png",
         plot = graph_trajectories,
@@ -1122,23 +1105,23 @@ contrast(emm, method = "pairwise")
 
 
 
-###-------------------------------------
-#GRAPH 8: DHARMa
-      library(DHARMa)
+###--------------------------------------------------------
+#GRAPH 8: DHARMa diagnotics
+    
       
       set.seed(123)
       
-      # Simulate 1000 datasets from your fitted model
+      # Generates 1000 response values from our model
       res_FINAL <- simulateResiduals(
         fittedModel = model_FINAL,
         n = 1000,
-        refit = FALSE
+        refit = FALSE #use existing estimates from our model
       )
       
-      # Standard diagnostic plots
+      #Generate standard plots used in DHARMa diagnostics
       plot(res_FINAL)
       
-      # Formal diagnostic tests
+      #Perform standard DHARMa diagnostic tests 
       testUniformity(res_FINAL)
       testDispersion(res_FINAL)
       testOutliers(res_FINAL)
